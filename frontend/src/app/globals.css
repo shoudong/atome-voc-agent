@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --pink-50: #FFF1F5;
+  --pink-100: #FFD9E4;
+  --pink-300: #FF8AAE;
+  --pink-500: #F0356A;
+  --pink-600: #D81E56;
+  --pink-700: #B21548;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
