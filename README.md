@@ -35,7 +35,7 @@ Built for the Philippines market. Designed for CS, Product, Compliance, and exec
 │           localhost:5432                     │
 │                                             │
 │  posts · incidents · alerts · feedback      │
-│  taxonomy · routing_rules · users           │
+│  taxonomy · routing_rules · lark_bots · users│
 └─────────────────────────────────────────────┘
 ```
 
@@ -80,11 +80,21 @@ Crawl (Reddit + X/Twitter)
 ### Alert Routing
 | Severity | Cadence | Channel |
 |---|---|---|
-| Critical / High | Immediate push | Slack DM + Lark DM + Email |
+| Critical / High | Immediate push | Slack + Lark (per-team) + Email |
 | Medium | Queued for review | Team channel |
 | Low / None | Daily digest | Morning brief email |
 
 Category-to-department routing is configurable via the UI (e.g., fraud → Risk + Security + CEO, app_bug → Product + Engineering).
+
+### Lark Bot Fan-Out
+Each team (Collections, Product, Engineering, Compliance, Risk, Security, CS, CS Head, CS Ops, CEO Office, PR, Ops) can have its own Lark group chat bot. When an alert fires:
+
+1. The alerting service resolves which recipients have active Lark bots via the `lark_bots` registry
+2. Creates **one alert per team** with the team-specific webhook URL stored in the alert payload
+3. Sends each alert to the correct Lark group — Product alerts go to the Product group, Compliance to Compliance, etc.
+4. Falls back to the global `LARK_WEBHOOK_URL` if no per-team bots are configured (backward compatible)
+
+Manage bots via the Settings page or `CRUD /api/lark-bots`. Each bot has a test endpoint to verify the webhook.
 
 ### Executive Dashboard
 - **KPI cards**: Total mentions, negative %, critical incidents, detect-to-alert latency, open incidents
@@ -112,6 +122,7 @@ Category-to-department routing is configurable via the UI (e.g., fraud → Risk 
 │   │   ├── feedback.py            # human correction queue
 │   │   ├── taxonomy.py            # categories + sub_issues config
 │   │   ├── routing.py             # category → department routing rules
+│   │   ├── lark_bot.py            # per-team Lark webhook registry
 │   │   └── user.py                # auth users
 │   ├── schemas/                   # Pydantic request/response models
 │   ├── api/
@@ -122,6 +133,7 @@ Category-to-department routing is configurable via the UI (e.g., fraud → Risk 
 │   │   ├── analytics.py           # Overview, trend, categories, channels
 │   │   ├── feedback.py            # Human feedback queue
 │   │   ├── taxonomy.py            # Category/sub-issue config
+│   │   ├── lark_bots.py           # Lark bot CRUD + test endpoint
 │   │   └── auth.py                # JWT login/register
 │   └── services/
 │       ├── crawler_reddit.py      # Reddit public API crawler
@@ -143,7 +155,8 @@ Category-to-department routing is configurable via the UI (e.g., fraud → Risk 
 │   │   ├── feedback/page.tsx      # Human correction queue
 │   │   ├── taxonomy/page.tsx      # Category/sub-issue config
 │   │   ├── routing/page.tsx       # Alert routing matrix
-│   │   └── settings/page.tsx      # System settings
+│   │   ├── methodology/page.tsx   # Classification methodology
+│   │   └── settings/page.tsx      # System settings + Lark bot management
 │   ├── src/components/
 │   │   ├── Sidebar.tsx            # Navigation sidebar
 │   │   ├── KPICard.tsx            # Metric card with delta
@@ -154,7 +167,9 @@ Category-to-department routing is configurable via the UI (e.g., fraud → Risk 
 │   │   ├── AlertFeedItem.tsx      # Alert card with source + routing info
 │   │   ├── SeverityBadge.tsx      # S0-S4 severity pill
 │   │   ├── CategoryTag.tsx        # Colored category label
-│   │   └── SubIssueTag.tsx        # Sub-issue pill
+│   │   ├── SubIssueTag.tsx        # Sub-issue pill
+│   │   ├── DateRangeSelector.tsx  # Time range filter component
+│   │   └── DrilldownPanel.tsx     # Date drilldown panel
 │   └── src/lib/
 │       ├── api.ts                 # API client functions
 │       ├── types.ts               # TypeScript interfaces
@@ -163,6 +178,7 @@ Category-to-department routing is configurable via the UI (e.g., fraud → Risk 
 ├── scripts/
 │   ├── seed_taxonomy.py           # Seed 11 categories + 28 sub-issues
 │   ├── seed_routing.py            # Seed 10 routing rules
+│   ├── seed_lark_bots.py          # Seed 12 team Lark bot placeholders
 │   └── backfill_crawl.py          # Backfill historical data
 │
 ├── alembic/                       # Database migrations
@@ -229,9 +245,10 @@ pip install psycopg2-binary    # needed for Alembic migrations
 # Run migrations
 alembic upgrade head
 
-# Seed taxonomy and routing rules
+# Seed taxonomy, routing rules, and Lark bot placeholders
 python scripts/seed_taxonomy.py
 python scripts/seed_routing.py
+python scripts/seed_lark_bots.py    # optional: creates inactive bots for all 12 teams
 ```
 
 ### 4. Set up the frontend
@@ -318,6 +335,15 @@ The APScheduler runs inside the FastAPI process — no external cron daemon need
 
 All analytics endpoints accept `?days=7|30|90` and filter by post creation date.
 
+### Lark Bots
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/lark-bots` | List all Lark bots |
+| `POST` | `/api/lark-bots` | Create a bot (team_name, webhook_url, description) |
+| `PATCH` | `/api/lark-bots/{id}` | Update webhook URL, description, or active status |
+| `DELETE` | `/api/lark-bots/{id}` | Delete a bot |
+| `POST` | `/api/lark-bots/{id}/test` | Send a test card to verify the webhook |
+
 ### Config
 | Method | Endpoint | Description |
 |---|---|---|
@@ -369,6 +395,18 @@ Groups of related posts forming a single incident.
 | `first_seen` | TIMESTAMPTZ | Earliest post date |
 | `last_seen` | TIMESTAMPTZ | Latest post date |
 | `status` | VARCHAR | new / acknowledged / in_review / actioned / resolved / ignored |
+
+### lark_bots (per-team webhook registry)
+Maps each team to its own Lark group chat bot for fan-out alerts.
+
+| Column | Type | Description |
+|---|---|---|
+| `id` | BIGSERIAL | Primary key |
+| `team_name` | VARCHAR(100) | Team name (unique), matches routing rule strings |
+| `webhook_url` | VARCHAR(500) | Lark custom bot webhook URL |
+| `description` | VARCHAR(300) | Optional description |
+| `is_active` | BOOLEAN | Enable/disable without deleting |
+| `created_at` | TIMESTAMPTZ | Creation timestamp |
 
 ---
 
