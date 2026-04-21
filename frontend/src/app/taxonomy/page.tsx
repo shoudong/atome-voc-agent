@@ -102,7 +102,7 @@ export default function TaxonomyPage() {
             {subIssues.map((si) => (
               <span
                 key={si.id}
-                className="inline-block bg-pink-50 text-pink-700 border border-pink-200 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                className="inline-block bg-[#f0ff5f]/15 text-brand-500 border border-[#f0ff5f]/30 px-2.5 py-1 rounded-full text-[11px] font-semibold"
               >
                 {si.label}
               </span>

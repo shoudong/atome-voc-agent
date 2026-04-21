@@ -4,14 +4,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        pink: {
-          50: '#FFF1F5',
-          100: '#FFD9E4',
-          300: '#FF8AAE',
-          500: '#F0356A',
-          600: '#D81E56',
-          700: '#B21548',
+        brand: {
+          50: '#f0f1f5',
+          100: '#e0e3ec',
+          300: '#8b95b0',
+          500: '#141c30',
+          600: '#0d1220',
+          700: '#080c18',
         },
+        accent: '#f0ff5f',
+        coral: '#ff5844',
+        beige: '#e6e6de',
         sev: {
           s0: '#9CA3AF',
           s1: '#10B981',

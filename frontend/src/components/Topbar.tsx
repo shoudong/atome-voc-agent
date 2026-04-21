@@ -25,10 +25,10 @@ export default function Topbar() {
       <div className="flex-1" />
 
       {/* Filters */}
-      <button className="flex items-center gap-1.5 bg-pink-50 border border-pink-300 px-2.5 py-1.5 rounded-lg text-[13px] text-pink-700 font-semibold">
+      <button className="flex items-center gap-1.5 bg-brand-50 border border-brand-300 px-2.5 py-1.5 rounded-lg text-[13px] text-brand-500 font-semibold">
         PH Philippines
       </button>
-      <button className="flex items-center gap-1.5 bg-pink-50 border border-pink-300 px-2.5 py-1.5 rounded-lg text-[13px] text-pink-700 font-semibold">
+      <button className="flex items-center gap-1.5 bg-brand-50 border border-brand-300 px-2.5 py-1.5 rounded-lg text-[13px] text-brand-500 font-semibold">
         X + Reddit
       </button>
       <button className="flex items-center gap-1.5 bg-gray-100 border border-gray-200 px-2.5 py-1.5 rounded-lg text-[13px] text-gray-700 hover:bg-gray-200">
@@ -36,7 +36,7 @@ export default function Topbar() {
       </button>
 
       {/* Avatar */}
-      <div className="w-[34px] h-[34px] rounded-full bg-gradient-to-br from-orange-300 to-pink-500 flex items-center justify-center text-white font-bold text-xs">
+      <div className="w-[34px] h-[34px] rounded-full bg-[#141c30] flex items-center justify-center text-[#f0ff5f] font-bold text-xs">
         DS
       </div>
     </div>

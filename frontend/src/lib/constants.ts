@@ -11,7 +11,7 @@ export const CATEGORIES = [
   { key: 'customer_service', label: 'Customer Service', color: '#06B6D4' },
   { key: 'debt_collection', label: 'Debt Collection', color: '#E11D48' },
   { key: 'interest_rate', label: 'Interest Rate', color: '#F97316' },
-  { key: 'not_negative', label: 'Not Negative', color: '#9CA3AF' },
+  { key: 'not_negative', label: 'General Mentions', color: '#9CA3AF' },
 ] as const;
 
 export const SUB_ISSUES = [

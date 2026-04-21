@@ -30,6 +30,7 @@ export default function IncidentsPage() {
             severity: 'critical', platforms: ['twitter'], post_count: 1, first_seen: '2026-04-19T14:00:00Z',
             last_seen: '2026-04-19T17:00:00Z', trend_pct: 180, status: 'new', assigned_to: null,
             assigned_dept: 'CEO Office', created_at: '2026-04-19T14:00:00Z', updated_at: '2026-04-19T17:00:00Z',
+            source_url: 'https://x.com/PisoWisePH/status/1234567890', source_created_at: '2026-04-19T14:00:00Z', source_author: 'PisoWisePH',
           },
           {
             id: 2, incident_code: 'INC-2026-0419-03', title: 'GCash repayment failing — r/Philippines thread',
@@ -37,6 +38,7 @@ export default function IncidentsPage() {
             severity: 'critical', platforms: ['reddit'], post_count: 184, first_seen: '2026-04-19T11:00:00Z',
             last_seen: '2026-04-19T17:00:00Z', trend_pct: 220, status: 'in_review', assigned_to: null,
             assigned_dept: 'Product + CS', created_at: '2026-04-19T11:00:00Z', updated_at: '2026-04-19T17:00:00Z',
+            source_url: 'https://reddit.com/r/Philippines/comments/abc123/', source_created_at: '2026-04-19T11:00:00Z', source_author: 'user123',
           },
           {
             id: 3, incident_code: 'INC-2026-0419-02', title: 'App checkout crash after v3.8.2',
@@ -44,6 +46,7 @@ export default function IncidentsPage() {
             severity: 'high', platforms: ['twitter', 'reddit'], post_count: 23, first_seen: '2026-04-19T08:00:00Z',
             last_seen: '2026-04-19T17:00:00Z', trend_pct: 130, status: 'acknowledged', assigned_to: null,
             assigned_dept: 'Engineering', created_at: '2026-04-19T08:00:00Z', updated_at: '2026-04-19T17:00:00Z',
+            source_url: 'https://x.com/user456/status/9876543210', source_created_at: '2026-04-19T08:00:00Z', source_author: 'user456',
           },
         ]);
         setTotal(3);

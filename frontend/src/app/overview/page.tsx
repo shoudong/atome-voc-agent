@@ -3,32 +3,41 @@
 import { useEffect, useState } from 'react';
 import KPICard from '@/components/KPICard';
 import TrendChart from '@/components/TrendChart';
+import DrilldownPanel from '@/components/DrilldownPanel';
 import SeverityDonut from '@/components/SeverityDonut';
-import IncidentCard from '@/components/IncidentCard';
 import IncidentTable from '@/components/IncidentTable';
+import DateRangeSelector from '@/components/DateRangeSelector';
 import { CATEGORIES, SUBREDDITS } from '@/lib/constants';
-import type { Incident, KPIOverview, TrendPoint, CategoryCount, SeverityCount } from '@/lib/types';
+import type { Incident, KPIOverview, TrendPoint, CategoryCount, SeverityCount, TimeRange } from '@/lib/types';
 import * as api from '@/lib/api';
 
+function rangeLabel(range: TimeRange): string {
+  if (range.mode === 'custom') return `${range.since} – ${range.until}`;
+  return `${range.days}d`;
+}
+
 export default function OverviewPage() {
-  const [days, setDays] = useState(7);
+  const [timeRange, setTimeRange] = useState<TimeRange>({ mode: 'preset', days: 7 });
   const [kpi, setKpi] = useState<KPIOverview | null>(null);
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [severity, setSeverity] = useState<{ items: SeverityCount[]; total: number } | null>(null);
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
+    setSelectedDate(null);
+    const incidentDays = timeRange.mode === 'preset' ? timeRange.days : undefined;
     Promise.all([
-      api.getOverview(days),
-      api.getTrend(days),
-      api.getCategories(days),
-      api.getSeverityDistribution(days),
-      api.getIncidents({ page_size: 6, days }),
-      api.getChannels(days),
+      api.getOverview(timeRange),
+      api.getTrend(timeRange),
+      api.getCategories(timeRange),
+      api.getSeverityDistribution(timeRange),
+      api.getIncidents({ page_size: 6, days: incidentDays }),
+      api.getChannels(timeRange),
     ])
       .then(([kpiData, trendData, catData, sevData, incData, channelData]) => {
         setKpi(kpiData);
@@ -120,7 +129,7 @@ export default function OverviewPage() {
         ]);
       })
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [timeRange]);
 
   const maxCatCount = Math.max(...categories.map((c) => c.count), 1);
 
@@ -136,26 +145,7 @@ export default function OverviewPage() {
             Monitoring X / Twitter and Reddit for Atome PH
           </p>
         </div>
-        <div className="flex gap-1.5 bg-white p-1 border border-gray-200 rounded-[10px]">
-          {[
-            { label: '24h', value: 1 },
-            { label: '7d', value: 7 },
-            { label: '30d', value: 30 },
-            { label: '90d', value: 90 },
-          ].map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setDays(r.value)}
-              className={`px-3 py-1.5 text-[12.5px] rounded-md ${
-                days === r.value
-                  ? 'bg-pink-500 text-white font-semibold'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <DateRangeSelector value={timeRange} onChange={setTimeRange} />
       </div>
 
       {/* KPI row */}
@@ -163,7 +153,7 @@ export default function OverviewPage() {
         <KPICard
           label="Total mentions"
           value={kpi?.total_mentions ?? '-'}
-          delta={`▲ 9.6% vs last ${days}d`}
+          delta={`▲ 9.6% vs last ${rangeLabel(timeRange)}`}
           deltaDirection="up"
         />
         <KPICard
@@ -201,35 +191,28 @@ export default function OverviewPage() {
           <div className="flex items-start justify-between mb-3.5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Complaint volume by severity</h3>
-              <div className="text-xs text-gray-500 mt-0.5">Last {days} days</div>
+              <div className="text-xs text-gray-500 mt-0.5">Last {rangeLabel(timeRange)}</div>
             </div>
           </div>
-          <TrendChart data={trend} />
+          <TrendChart
+            data={trend}
+            selectedDate={selectedDate}
+            onDateClick={(date) => setSelectedDate(selectedDate === date ? null : date)}
+          />
+          {selectedDate && (
+            <DrilldownPanel
+              date={selectedDate}
+              onClose={() => setSelectedDate(null)}
+            />
+          )}
         </div>
 
         <div className="bg-white rounded-[14px] border border-gray-200 shadow-sm p-5">
           <div className="mb-3.5">
             <h3 className="text-sm font-bold text-gray-900">Severity distribution</h3>
-            <div className="text-xs text-gray-500 mt-0.5">All mentions · last {days}d</div>
+            <div className="text-xs text-gray-500 mt-0.5">All mentions · last {rangeLabel(timeRange)}</div>
           </div>
           {severity && <SeverityDonut data={severity.items} total={severity.total} />}
-        </div>
-      </div>
-
-      {/* Critical incidents */}
-      <div className="bg-white rounded-[14px] border border-gray-200 shadow-sm p-5 mb-4">
-        <div className="flex items-start justify-between mb-3.5">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Top incidents needing attention</h3>
-            <div className="text-xs text-gray-500 mt-0.5">
-              Auto-clustered from related posts on X + Reddit · sorted by severity
-            </div>
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          {incidents.slice(0, 6).map((inc) => (
-            <IncidentCard key={inc.id} incident={inc} />
-          ))}
         </div>
       </div>
 
@@ -240,7 +223,7 @@ export default function OverviewPage() {
           <div className="flex items-start justify-between mb-3.5">
             <div>
               <h3 className="text-sm font-bold text-gray-900">Top complaint categories</h3>
-              <div className="text-xs text-gray-500 mt-0.5">Volume last {days}d</div>
+              <div className="text-xs text-gray-500 mt-0.5">Volume last {rangeLabel(timeRange)}</div>
             </div>
           </div>
           {categories.map((cat) => {
@@ -252,7 +235,7 @@ export default function OverviewPage() {
                 <div className="text-gray-700 truncate">{label}</div>
                 <div className="bg-gray-100 rounded h-2.5 overflow-hidden">
                   <div
-                    className="h-full rounded bg-gradient-to-r from-pink-500 to-pink-300"
+                    className="h-full rounded bg-gradient-to-r from-brand-500 to-brand-300"
                     style={{ width: `${pct}%` }}
                   />
                 </div>
@@ -362,8 +345,10 @@ export default function OverviewPage() {
       <div className="bg-white rounded-[14px] border border-gray-200 shadow-sm p-5">
         <div className="flex items-start justify-between mb-3.5">
           <div>
-            <h3 className="text-sm font-bold text-gray-900">Top incidents by priority</h3>
-            <div className="text-xs text-gray-500 mt-0.5">Ranked by severity x virality x recurrence</div>
+            <h3 className="text-sm font-bold text-gray-900">Top incidents needing attention</h3>
+            <div className="text-xs text-gray-500 mt-0.5">
+              Auto-clustered from related posts on X + Reddit · ranked by severity · click to expand
+            </div>
           </div>
         </div>
         <IncidentTable incidents={incidents} />

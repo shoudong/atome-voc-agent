@@ -14,70 +14,80 @@ RULES = [
     {
         "category": "debt_collection",
         "severity_min": "low",
-        "departments": ["Collections", "Compliance"],
+        "primary_owner": "Collections",
+        "departments": ["Compliance"],
         "escalate_to": ["CEO Office"],
         "channels": ["slack", "lark"],
     },
     {
         "category": "transaction",
         "severity_min": "low",
-        "departments": ["Product", "CS", "Ops"],
+        "primary_owner": "Product",
+        "departments": ["CS", "Ops"],
         "escalate_to": None,
         "channels": ["slack"],
     },
     {
         "category": "app_bug",
         "severity_min": "low",
-        "departments": ["Product", "Engineering"],
+        "primary_owner": "Engineering",
+        "departments": ["Product"],
         "escalate_to": None,
         "channels": ["slack"],
     },
     {
         "category": "interest_rate",
         "severity_min": "low",
-        "departments": ["CEO Office", "Compliance", "PR"],
+        "primary_owner": "Compliance",
+        "departments": ["CEO Office", "PR"],
         "escalate_to": ["CEO Office"],
         "channels": ["slack", "email"],
     },
     {
         "category": "fraud",
         "severity_min": "medium",
-        "departments": ["Risk", "Security"],
+        "primary_owner": "Risk",
+        "departments": ["Security"],
         "escalate_to": ["CEO Office"],
         "channels": ["slack", "lark", "email"],
     },
     {
         "category": "security",
         "severity_min": "medium",
-        "departments": ["Risk", "Security"],
+        "primary_owner": "Security",
+        "departments": ["Risk"],
         "escalate_to": ["CEO Office"],
         "channels": ["slack", "lark", "email"],
     },
     {
         "category": "customer_service",
         "severity_min": "low",
-        "departments": ["CS Head", "CS Ops"],
+        "primary_owner": "CS Head",
+        "departments": ["CS Ops"],
         "escalate_to": None,
         "channels": ["slack"],
     },
     {
         "category": "refund",
         "severity_min": "low",
-        "departments": ["Product", "CS"],
+        "primary_owner": "CS",
+        "departments": ["Product"],
         "escalate_to": None,
         "channels": ["slack"],
     },
     {
         "category": "spend_limit",
         "severity_min": "low",
-        "departments": ["Product", "Risk"],
+        "primary_owner": "Product",
+        "departments": ["Risk"],
         "escalate_to": None,
         "channels": ["slack"],
     },
     {
         "category": "account",
         "severity_min": "low",
-        "departments": ["Product", "CS"],
+        "primary_owner": "CS",
+        "departments": ["Product"],
         "escalate_to": None,
         "channels": ["slack"],
     },
@@ -94,7 +104,7 @@ async def seed():
             ).scalar_one_or_none()
             if not existing:
                 db.add(RoutingRule(**rule))
-                print(f"  + Routing rule: {rule['category']} -> {rule['departments']}")
+                print(f"  + Routing rule: {rule['category']} -> {rule['primary_owner']} (+ {rule['departments']})")
 
         await db.commit()
         print("Routing rules seeding complete.")

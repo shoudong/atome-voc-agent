@@ -6,7 +6,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.api import alerts, analytics, auth, crawler, feedback, incidents, monitor, taxonomy
+from backend.api import alerts, analytics, auth, crawler, feedback, incidents, lark_bots, monitor, taxonomy
 from backend.config import settings
 
 
@@ -80,6 +80,7 @@ app.include_router(feedback.router)
 app.include_router(taxonomy.router)
 app.include_router(analytics.router)
 app.include_router(auth.router)
+app.include_router(lark_bots.router)
 
 
 @app.get("/health")

@@ -113,3 +113,7 @@ export interface PaginatedResponse<T> {
   page: number;
   page_size: number;
 }
+
+export type TimeRange =
+  | { mode: 'preset'; days: number }
+  | { mode: 'custom'; since: string; until: string }; // YYYY-MM-DD

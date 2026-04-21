@@ -37,7 +37,7 @@ async def list_incidents(
     where = and_(*conditions) if conditions else True
     total = (await db.execute(select(func.count()).select_from(Incident).where(where))).scalar() or 0
 
-    # Sort by severity priority (critical first) then recency
+    # Sort by severity priority (critical first), then post count (bigger clusters first), then recency
     severity_rank = case(
         {"critical": 0, "high": 1, "medium": 2, "low": 3},
         value=Incident.severity,
@@ -50,7 +50,7 @@ async def list_incidents(
             await db.execute(
                 select(Incident)
                 .where(where)
-                .order_by(severity_rank, Incident.last_seen.desc())
+                .order_by(severity_rank, Incident.post_count.desc(), Incident.last_seen.desc())
                 .offset(offset)
                 .limit(page_size)
             )
@@ -91,8 +91,17 @@ async def get_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
     if not inc:
         raise HTTPException(404, "Incident not found")
 
+    post_severity_rank = case(
+        {"critical": 0, "high": 1, "medium": 2, "low": 3},
+        value=Post.severity,
+        else_=4,
+    )
     posts = (
-        (await db.execute(select(Post).where(Post.incident_id == incident_id).order_by(Post.created_at.desc())))
+        (await db.execute(
+            select(Post)
+            .where(Post.incident_id == incident_id)
+            .order_by(post_severity_rank, Post.created_at.desc())
+        ))
         .scalars()
         .all()
     )

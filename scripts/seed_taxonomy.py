@@ -21,7 +21,7 @@ CATEGORIES = [
     {"key": "customer_service", "label": "Customer Service", "description": "CS response quality, wait times, unhelpful agents", "color": "#06B6D4", "sort_order": 7},
     {"key": "debt_collection", "label": "Debt Collection", "description": "Collection harassment, aggressive tone, threats, unfair practices", "color": "#E11D48", "sort_order": 8},
     {"key": "interest_rate", "label": "Interest Rate", "description": "Interest/fee complaints, hidden charges, late fees, billing disputes", "color": "#F97316", "sort_order": 9},
-    {"key": "not_negative", "label": "Not Negative", "description": "Positive, neutral, or irrelevant mention", "color": "#9CA3AF", "sort_order": 10},
+    {"key": "not_negative", "label": "General Mentions", "description": "Positive, neutral, or irrelevant mention", "color": "#9CA3AF", "sort_order": 10},
 ]
 
 SUB_ISSUES = [

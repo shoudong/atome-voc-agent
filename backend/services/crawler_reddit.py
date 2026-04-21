@@ -24,7 +24,16 @@ SUBREDDITS = [
     "phinvest",
     "phfinance",
 ]
-KEYWORD = "Atome"
+KEYWORDS = [
+    "Atome",
+    "Atome hindi mabayaran",
+    "Atome interest",
+    "Atome OTP",
+    "Atome scam",
+    "Atome collection",
+    "Atome nabawasan limit",
+    "Atome bayad",
+]
 RATE_LIMIT_DELAY = 2.0  # 1 req / 2 sec
 
 
@@ -33,18 +42,23 @@ async def crawl_reddit(lookback_hours: int = 24):
     logger.info(f"Starting Reddit crawl (lookback={lookback_hours}h)")
     all_posts = []
 
+    seen_urls: set[str] = set()
     async with httpx.AsyncClient(
         headers={"User-Agent": settings.reddit_user_agent},
         timeout=30.0,
     ) as client:
         for sub in SUBREDDITS:
-            try:
-                posts = await _search_subreddit(client, sub, lookback_hours)
-                all_posts.extend(posts)
-                logger.info(f"r/{sub}: found {len(posts)} posts")
-            except Exception:
-                logger.exception(f"Failed to crawl r/{sub}")
-            await asyncio.sleep(RATE_LIMIT_DELAY)
+            for keyword in KEYWORDS:
+                try:
+                    posts = await _search_subreddit(client, sub, lookback_hours, keyword)
+                    for p in posts:
+                        if p["url"] not in seen_urls:
+                            seen_urls.add(p["url"])
+                            all_posts.append(p)
+                    logger.info(f"r/{sub} [{keyword}]: found {len(posts)} posts")
+                except Exception:
+                    logger.exception(f"Failed to crawl r/{sub} [{keyword}]")
+                await asyncio.sleep(RATE_LIMIT_DELAY)
 
     # Save to DB
     saved = await _save_posts(all_posts)
@@ -57,12 +71,12 @@ async def crawl_reddit(lookback_hours: int = 24):
 
 
 async def _search_subreddit(
-    client: httpx.AsyncClient, subreddit: str, lookback_hours: int
+    client: httpx.AsyncClient, subreddit: str, lookback_hours: int, keyword: str = "Atome"
 ) -> list[dict]:
     """Search a subreddit for Atome mentions."""
     url = f"https://www.reddit.com/r/{subreddit}/search.json"
     params = {
-        "q": KEYWORD,
+        "q": keyword,
         "restrict_sr": "on",
         "sort": "new",
         "t": _reddit_time_filter(lookback_hours),

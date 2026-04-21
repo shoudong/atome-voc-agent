@@ -55,3 +55,29 @@ class SeverityCount(BaseModel):
 class SeverityDistribution(BaseModel):
     items: list[SeverityCount]
     total: int
+
+
+class DrilldownPost(BaseModel):
+    id: int
+    platform: str
+    url: str | None
+    author_handle: str | None
+    severity: str | None
+    category: str | None
+    summary: str | None
+    content_text: str | None
+    engagement_likes: int
+    engagement_replies: int
+    engagement_reposts: int
+    created_at: str | None
+
+    model_config = {"from_attributes": True}
+
+
+class DrilldownResponse(BaseModel):
+    date: str
+    total: int
+    by_category: list[CategoryCount]
+    by_severity: list[SeverityCount]
+    by_platform: list[dict]
+    top_posts: list[DrilldownPost]

@@ -1,6 +1,5 @@
 """Alerting service: Slack + Lark + Email. Immediate / Queue / Digest."""
 
-import json
 import logging
 from datetime import datetime, timedelta
 
@@ -11,6 +10,7 @@ from backend.config import settings
 from backend.database import async_session
 from backend.models.alert import Alert
 from backend.models.incident import Incident
+from backend.models.lark_bot import LarkBot
 from backend.models.routing import RoutingRule
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,20 @@ SEVERITY_CADENCE = {
     "low": "digest",
     "none": "digest",
 }
+
+
+async def _resolve_lark_webhooks(recipients: list[str], db) -> list[tuple[str, str]]:
+    """Return list of (team_name, webhook_url) for each recipient with an active Lark bot."""
+    if not recipients:
+        return []
+    bots = (
+        await db.execute(
+            select(LarkBot).where(
+                LarkBot.team_name.in_(recipients), LarkBot.is_active == True
+            )
+        )
+    ).scalars().all()
+    return [(b.team_name, b.webhook_url) for b in bots]
 
 
 async def check_and_send_alerts():
@@ -55,44 +69,118 @@ async def check_and_send_alerts():
             cadence = SEVERITY_CADENCE.get(incident.severity, "digest")
 
             for rule in rules:
+                recipients = [rule.primary_owner] if rule.primary_owner else []
+                recipients.extend(rule.departments)
+                if incident.severity == "critical" and rule.escalate_to:
+                    recipients.extend(rule.escalate_to)
+
                 for channel in rule.channels:
-                    # Check if alert already sent
-                    existing = (
-                        await db.execute(
-                            select(Alert).where(
-                                and_(
-                                    Alert.incident_id == incident.id,
-                                    Alert.channel == channel,
+                    if channel == "lark":
+                        # Fan-out: one alert per team with a Lark bot
+                        matched_bots = await _resolve_lark_webhooks(recipients, db)
+
+                        for team_name, webhook_url in matched_bots:
+                            # Dedup: skip if alert already exists for this incident+team
+                            existing = (
+                                await db.execute(
+                                    select(Alert).where(
+                                        and_(
+                                            Alert.incident_id == incident.id,
+                                            Alert.channel == "lark",
+                                            Alert.recipients.contains([team_name]),
+                                        )
+                                    )
+                                )
+                            ).scalar_one_or_none()
+
+                            if existing:
+                                continue
+
+                            payload = _build_payload(incident, rule)
+                            payload["lark_webhook_url"] = webhook_url
+
+                            alert = Alert(
+                                incident_id=incident.id,
+                                alert_type=cadence,
+                                severity=incident.severity,
+                                channel="lark",
+                                recipients=[team_name],
+                                subject=f"[{incident.severity.upper()}] {incident.title}",
+                                body=incident.summary,
+                                payload=payload,
+                            )
+                            db.add(alert)
+                            await db.flush()
+
+                            if cadence == "immediate":
+                                success = await _send_alert(alert)
+                                alert.delivery_status = "sent" if success else "failed"
+                                alert.sent_at = datetime.utcnow() if success else None
+
+                        # Fallback: no bots matched, use global webhook
+                        if not matched_bots and settings.lark_webhook_url:
+                            existing = (
+                                await db.execute(
+                                    select(Alert).where(
+                                        and_(
+                                            Alert.incident_id == incident.id,
+                                            Alert.channel == "lark",
+                                        )
+                                    )
+                                )
+                            ).scalar_one_or_none()
+
+                            if not existing:
+                                alert = Alert(
+                                    incident_id=incident.id,
+                                    alert_type=cadence,
+                                    severity=incident.severity,
+                                    channel="lark",
+                                    recipients=recipients,
+                                    subject=f"[{incident.severity.upper()}] {incident.title}",
+                                    body=incident.summary,
+                                    payload=_build_payload(incident, rule),
+                                )
+                                db.add(alert)
+                                await db.flush()
+
+                                if cadence == "immediate":
+                                    success = await _send_alert(alert)
+                                    alert.delivery_status = "sent" if success else "failed"
+                                    alert.sent_at = datetime.utcnow() if success else None
+                    else:
+                        # Non-lark channels: original behavior
+                        existing = (
+                            await db.execute(
+                                select(Alert).where(
+                                    and_(
+                                        Alert.incident_id == incident.id,
+                                        Alert.channel == channel,
+                                    )
                                 )
                             )
+                        ).scalar_one_or_none()
+
+                        if existing:
+                            continue
+
+                        alert = Alert(
+                            incident_id=incident.id,
+                            alert_type=cadence,
+                            severity=incident.severity,
+                            channel=channel,
+                            recipients=recipients,
+                            subject=f"[{incident.severity.upper()}] {incident.title}",
+                            body=incident.summary,
+                            payload=_build_payload(incident, rule),
                         )
-                    ).scalar_one_or_none()
+                        db.add(alert)
+                        await db.flush()
 
-                    if existing:
-                        continue
-
-                    recipients = list(rule.departments)
-                    if incident.severity == "critical" and rule.escalate_to:
-                        recipients.extend(rule.escalate_to)
-
-                    alert = Alert(
-                        incident_id=incident.id,
-                        alert_type=cadence,
-                        severity=incident.severity,
-                        channel=channel,
-                        recipients=recipients,
-                        subject=f"[{incident.severity.upper()}] {incident.title}",
-                        body=incident.summary,
-                        payload=_build_payload(incident, rule),
-                    )
-                    db.add(alert)
-                    await db.flush()
-
-                    # Send immediately for critical/high
-                    if cadence == "immediate":
-                        success = await _send_alert(alert)
-                        alert.delivery_status = "sent" if success else "failed"
-                        alert.sent_at = datetime.utcnow() if success else None
+                        if cadence == "immediate":
+                            success = await _send_alert(alert)
+                            alert.delivery_status = "sent" if success else "failed"
+                            alert.sent_at = datetime.utcnow() if success else None
 
             # Mark incident as acknowledged after alerting
             incident.status = "acknowledged"
@@ -109,6 +197,7 @@ def _build_payload(incident: Incident, rule: RoutingRule) -> dict:
         "severity": incident.severity,
         "post_count": incident.post_count,
         "platforms": incident.platforms,
+        "primary_owner": rule.primary_owner,
         "departments": list(rule.departments),
     }
 
@@ -158,7 +247,8 @@ async def _send_slack(alert: Alert) -> bool:
                     "text": (
                         f"*Severity:* {alert.severity.upper()}\n"
                         f"*Summary:* {alert.body or 'N/A'}\n"
-                        f"*Routed to:* {', '.join(alert.recipients or [])}"
+                        f"*Primary Owner:* {alert.recipients[0] if alert.recipients else 'N/A'}\n"
+                        f"*Also notified:* {', '.join(alert.recipients[1:]) if alert.recipients and len(alert.recipients) > 1 else '-'}"
                     ),
                 },
             },
@@ -172,8 +262,10 @@ async def _send_slack(alert: Alert) -> bool:
 
 async def _send_lark(alert: Alert) -> bool:
     """Send Lark webhook card message."""
-    if not settings.lark_webhook_url:
-        logger.warning("Lark webhook not configured")
+    # Prefer per-alert webhook from payload, fall back to global setting
+    webhook_url = (alert.payload or {}).get("lark_webhook_url") or settings.lark_webhook_url
+    if not webhook_url:
+        logger.warning("No Lark webhook for alert %s", alert.id)
         return False
 
     color_map = {"critical": "red", "high": "orange", "medium": "yellow", "low": "blue"}
@@ -193,7 +285,8 @@ async def _send_lark(alert: Alert) -> bool:
                         "content": (
                             f"**Severity:** {alert.severity.upper()}\n"
                             f"**Summary:** {alert.body or 'N/A'}\n"
-                            f"**Routed to:** {', '.join(alert.recipients or [])}"
+                            f"**Team:** {alert.recipients[0] if alert.recipients else 'N/A'}\n"
+                            f"**Also notified:** {', '.join(alert.recipients[1:]) if alert.recipients and len(alert.recipients) > 1 else '-'}"
                         ),
                     },
                 }
@@ -202,7 +295,7 @@ async def _send_lark(alert: Alert) -> bool:
     }
 
     async with httpx.AsyncClient() as client:
-        resp = await client.post(settings.lark_webhook_url, json=payload)
+        resp = await client.post(webhook_url, json=payload)
         return resp.status_code == 200
 
 
@@ -227,7 +320,8 @@ async def _send_email(alert: Alert) -> bool:
         <h2 style="color: #DC2626;">{alert.subject}</h2>
         <p><strong>Severity:</strong> {alert.severity.upper()}</p>
         <p><strong>Summary:</strong> {alert.body or 'N/A'}</p>
-        <p><strong>Routed to:</strong> {', '.join(alert.recipients or [])}</p>
+        <p><strong>Primary Owner:</strong> {alert.recipients[0] if alert.recipients else 'N/A'}</p>
+        <p><strong>Also notified:</strong> {', '.join(alert.recipients[1:]) if alert.recipients and len(alert.recipients) > 1 else '-'}</p>
         <hr>
         <p style="color: #666;">Atome VoC Early Warning Agent</p>
         </body></html>

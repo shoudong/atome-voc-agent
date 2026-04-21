@@ -1,4 +1,6 @@
+from datetime import date as date_type
 from datetime import datetime, timedelta
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import and_, case, func, select
@@ -12,6 +14,8 @@ from backend.schemas.analytics import (
     CategoryResponse,
     ChannelResponse,
     ChannelStats,
+    DrilldownPost,
+    DrilldownResponse,
     KPIOverview,
     SeverityCount,
     SeverityDistribution,
@@ -22,32 +26,60 @@ from backend.schemas.analytics import (
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 
+def resolve_time_range(
+    days: int = 7,
+    since: Optional[date_type] = None,
+    until: Optional[date_type] = None,
+) -> Tuple[datetime, datetime]:
+    """Return (start_dt, end_dt) from either custom dates or a preset days value.
+
+    If ``since`` is provided, use custom range (``until`` defaults to today).
+    ``until`` is inclusive — the end bound is set to the start of the next day.
+    If ``since > until``, the two are swapped automatically.
+    """
+    if since is not None:
+        end_date = until if until is not None else datetime.utcnow().date()
+        start_date = since
+        if start_date > end_date:
+            start_date, end_date = end_date, start_date
+        start_dt = datetime.combine(start_date, datetime.min.time())
+        end_dt = datetime.combine(end_date + timedelta(days=1), datetime.min.time())
+    else:
+        end_dt = datetime.utcnow()
+        start_dt = end_dt - timedelta(days=days)
+    return start_dt, end_dt
+
+
 @router.get("/overview", response_model=KPIOverview)
 async def overview(
     days: int = Query(7, ge=1, le=90),
+    since: Optional[date_type] = Query(None),
+    until: Optional[date_type] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    start_dt, end_dt = resolve_time_range(days, since, until)
+    time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
 
     total = (
-        await db.execute(select(func.count()).select_from(Post).where(Post.created_at >= since))
+        await db.execute(select(func.count()).select_from(Post).where(time_filter))
     ).scalar() or 0
 
     negative = (
         await db.execute(
             select(func.count())
             .select_from(Post)
-            .where(and_(Post.created_at >= since, Post.is_negative == True))
+            .where(and_(time_filter, Post.is_negative == True))
         )
     ).scalar() or 0
 
+    inc_time_filter = and_(Incident.last_seen >= start_dt, Incident.last_seen < end_dt)
     critical_inc = (
         await db.execute(
             select(func.count())
             .select_from(Incident)
             .where(
                 and_(
-                    Incident.first_seen >= since,
+                    inc_time_filter,
                     Incident.severity.in_(["critical", "high"]),
                 )
             )
@@ -75,9 +107,12 @@ async def overview(
 @router.get("/trend", response_model=TrendResponse)
 async def trend(
     days: int = Query(7, ge=1, le=90),
+    since: Optional[date_type] = Query(None),
+    until: Optional[date_type] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    start_dt, end_dt = resolve_time_range(days, since, until)
+    time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
     date_col = func.date(Post.created_at)
 
     rows = (
@@ -91,7 +126,7 @@ async def trend(
                 func.count().filter(Post.severity == "low").label("low"),
                 func.count().filter(Post.severity == "none").label("none_sev"),
             )
-            .where(Post.created_at >= since)
+            .where(time_filter)
             .group_by(date_col)
             .order_by(date_col)
         )
@@ -112,10 +147,12 @@ async def trend(
     }
 
     # Fill all days in the range (including zeros)
+    start_date = start_dt.date() if isinstance(start_dt, datetime) else start_dt
+    end_date = end_dt.date() if isinstance(end_dt, datetime) else end_dt
+    num_days = (end_date - start_date).days
     points = []
-    today = datetime.utcnow().date()
-    for i in range(days):
-        d = today - timedelta(days=days - 1 - i)
+    for i in range(num_days):
+        d = start_date + timedelta(days=i)
         ds = str(d)
         if ds in data_by_date:
             points.append(data_by_date[ds])
@@ -128,13 +165,16 @@ async def trend(
 @router.get("/categories", response_model=CategoryResponse)
 async def categories(
     days: int = Query(7, ge=1, le=90),
+    since: Optional[date_type] = Query(None),
+    until: Optional[date_type] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    start_dt, end_dt = resolve_time_range(days, since, until)
+    time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
     rows = (
         await db.execute(
             select(Post.category, func.count().label("cnt"))
-            .where(and_(Post.created_at >= since, Post.category.isnot(None)))
+            .where(and_(time_filter, Post.category.isnot(None)))
             .group_by(Post.category)
             .order_by(func.count().desc())
         )
@@ -152,9 +192,12 @@ async def categories(
 @router.get("/channels", response_model=ChannelResponse)
 async def channels(
     days: int = Query(7, ge=1, le=90),
+    since: Optional[date_type] = Query(None),
+    until: Optional[date_type] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    start_dt, end_dt = resolve_time_range(days, since, until)
+    time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
     rows = (
         await db.execute(
             select(
@@ -162,7 +205,7 @@ async def channels(
                 func.count().label("total"),
                 func.count().filter(Post.is_negative == True).label("negative"),
             )
-            .where(Post.created_at >= since)
+            .where(time_filter)
             .group_by(Post.platform)
         )
     ).all()
@@ -177,13 +220,16 @@ async def channels(
 @router.get("/severity-distribution", response_model=SeverityDistribution)
 async def severity_distribution(
     days: int = Query(7, ge=1, le=90),
+    since: Optional[date_type] = Query(None),
+    until: Optional[date_type] = Query(None),
     db: AsyncSession = Depends(get_db),
 ):
-    since = datetime.utcnow() - timedelta(days=days)
+    start_dt, end_dt = resolve_time_range(days, since, until)
+    time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
     rows = (
         await db.execute(
             select(Post.severity, func.count().label("cnt"))
-            .where(and_(Post.created_at >= since, Post.severity.isnot(None)))
+            .where(and_(time_filter, Post.severity.isnot(None)))
             .group_by(Post.severity)
         )
     ).all()
@@ -195,4 +241,103 @@ async def severity_distribution(
             for r in rows
         ],
         total=total,
+    )
+
+
+@router.get("/drilldown", response_model=DrilldownResponse)
+async def drilldown(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Drill down into a specific date to understand what drove the volume."""
+    target = date_type.fromisoformat(date)
+    day_start = datetime.combine(target, datetime.min.time())
+    day_end = day_start + timedelta(days=1)
+
+    date_filter = and_(Post.created_at >= day_start, Post.created_at < day_end)
+
+    # Total count
+    total = (
+        await db.execute(select(func.count()).select_from(Post).where(date_filter))
+    ).scalar() or 0
+
+    # By category
+    cat_rows = (
+        await db.execute(
+            select(Post.category, func.count().label("cnt"))
+            .where(and_(date_filter, Post.category.isnot(None)))
+            .group_by(Post.category)
+            .order_by(func.count().desc())
+        )
+    ).all()
+    cat_total = sum(r.cnt for r in cat_rows) or 1
+    by_category = [
+        CategoryCount(category=r.category, count=r.cnt, pct=round(r.cnt / cat_total * 100, 1))
+        for r in cat_rows
+    ]
+
+    # By severity
+    sev_rows = (
+        await db.execute(
+            select(Post.severity, func.count().label("cnt"))
+            .where(and_(date_filter, Post.severity.isnot(None)))
+            .group_by(Post.severity)
+        )
+    ).all()
+    sev_total = sum(r.cnt for r in sev_rows) or 1
+    by_severity = [
+        SeverityCount(severity=r.severity, count=r.cnt, pct=round(r.cnt / sev_total * 100, 1))
+        for r in sev_rows
+    ]
+
+    # By platform
+    plat_rows = (
+        await db.execute(
+            select(Post.platform, func.count().label("cnt"))
+            .where(date_filter)
+            .group_by(Post.platform)
+        )
+    ).all()
+    by_platform = [{"platform": r.platform, "count": r.cnt} for r in plat_rows]
+
+    # Top posts sorted by severity rank then engagement
+    severity_rank = case(
+        {"critical": 0, "high": 1, "medium": 2, "low": 3},
+        value=Post.severity,
+        else_=4,
+    )
+    top_posts_rows = (
+        await db.execute(
+            select(Post)
+            .where(date_filter)
+            .order_by(severity_rank, (Post.engagement_likes + Post.engagement_replies).desc())
+            .limit(10)
+        )
+    ).scalars().all()
+
+    top_posts = [
+        DrilldownPost(
+            id=p.id,
+            platform=p.platform,
+            url=p.url,
+            author_handle=p.author_handle,
+            severity=p.severity,
+            category=p.category,
+            summary=p.summary,
+            content_text=p.content_text,
+            engagement_likes=p.engagement_likes,
+            engagement_replies=p.engagement_replies,
+            engagement_reposts=p.engagement_reposts,
+            created_at=p.created_at.isoformat() if p.created_at else None,
+        )
+        for p in top_posts_rows
+    ]
+
+    return DrilldownResponse(
+        date=date,
+        total=total,
+        by_category=by_category,
+        by_severity=by_severity,
+        by_platform=by_platform,
+        top_posts=top_posts,
     )

@@ -1,3 +1,5 @@
+import type { TimeRange } from './types';
+
 const BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
@@ -9,17 +11,26 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+function timeRangeParams(range: TimeRange): string {
+  if (range.mode === 'custom') {
+    return `since=${range.since}&until=${range.until}`;
+  }
+  return `days=${range.days}`;
+}
+
 // Analytics
-export const getOverview = (days = 7) =>
-  fetchJSON<any>(`/api/analytics/overview?days=${days}`);
-export const getTrend = (days = 7) =>
-  fetchJSON<any>(`/api/analytics/trend?days=${days}`);
-export const getCategories = (days = 7) =>
-  fetchJSON<any>(`/api/analytics/categories?days=${days}`);
-export const getChannels = (days = 7) =>
-  fetchJSON<any>(`/api/analytics/channels?days=${days}`);
-export const getSeverityDistribution = (days = 7) =>
-  fetchJSON<any>(`/api/analytics/severity-distribution?days=${days}`);
+export const getOverview = (range: TimeRange = { mode: 'preset', days: 7 }) =>
+  fetchJSON<any>(`/api/analytics/overview?${timeRangeParams(range)}`);
+export const getTrend = (range: TimeRange = { mode: 'preset', days: 7 }) =>
+  fetchJSON<any>(`/api/analytics/trend?${timeRangeParams(range)}`);
+export const getCategories = (range: TimeRange = { mode: 'preset', days: 7 }) =>
+  fetchJSON<any>(`/api/analytics/categories?${timeRangeParams(range)}`);
+export const getChannels = (range: TimeRange = { mode: 'preset', days: 7 }) =>
+  fetchJSON<any>(`/api/analytics/channels?${timeRangeParams(range)}`);
+export const getSeverityDistribution = (range: TimeRange = { mode: 'preset', days: 7 }) =>
+  fetchJSON<any>(`/api/analytics/severity-distribution?${timeRangeParams(range)}`);
+export const getDrilldown = (date: string) =>
+  fetchJSON<any>(`/api/analytics/drilldown?date=${date}`);
 
 // Posts
 export const queryPosts = (params: Record<string, any>) => {
@@ -82,3 +93,14 @@ export const login = (email: string, password: string) =>
   });
 export const register = (data: any) =>
   fetchJSON<any>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
+
+// Lark Bots
+export const getLarkBots = () => fetchJSON<any[]>('/api/lark-bots');
+export const createLarkBot = (data: any) =>
+  fetchJSON<any>('/api/lark-bots', { method: 'POST', body: JSON.stringify(data) });
+export const updateLarkBot = (id: number, data: any) =>
+  fetchJSON<any>(`/api/lark-bots/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteLarkBot = (id: number) =>
+  fetchJSON<any>(`/api/lark-bots/${id}`, { method: 'DELETE' });
+export const testLarkBot = (id: number) =>
+  fetchJSON<any>(`/api/lark-bots/${id}/test`, { method: 'POST' });

@@ -59,7 +59,7 @@ export default function FeedbackPage() {
                   <td className="px-2.5 py-3 border-b border-gray-100 font-mono text-xs">#{fb.object_id}</td>
                   <td className="px-2.5 py-3 border-b border-gray-100 font-semibold">{fb.field_name}</td>
                   <td className="px-2.5 py-3 border-b border-gray-100 text-gray-500 line-through">{fb.original_value}</td>
-                  <td className="px-2.5 py-3 border-b border-gray-100 text-pink-700 font-semibold">{fb.corrected_value}</td>
+                  <td className="px-2.5 py-3 border-b border-gray-100 text-brand-500 font-semibold">{fb.corrected_value}</td>
                   <td className="px-2.5 py-3 border-b border-gray-100 text-gray-600">{fb.reason}</td>
                   <td className="px-2.5 py-3 border-b border-gray-100 text-gray-500 text-xs">
                     {new Date(fb.created_at).toLocaleDateString()}

@@ -97,7 +97,7 @@ export default function IncidentDetailPage() {
               )}
               {post.summary && (
                 <div className="text-xs text-gray-600 bg-gray-50 rounded p-2 mt-2">
-                  <span className="font-semibold text-pink-700">AI Summary:</span> {post.summary}
+                  <span className="font-semibold text-brand-500">AI Summary:</span> {post.summary}
                 </div>
               )}
               <div className="flex gap-3 mt-2 text-[11px] text-gray-500">
@@ -105,7 +105,7 @@ export default function IncidentDetailPage() {
                 <span>Likes: {post.engagement_likes}</span>
                 <span>Replies: {post.engagement_replies}</span>
                 {post.url && (
-                  <a href={post.url} target="_blank" rel="noopener" className="text-pink-600 hover:underline ml-auto">
+                  <a href={post.url} target="_blank" rel="noopener" className="text-brand-500 hover:text-coral hover:underline ml-auto">
                     View source
                   </a>
                 )}

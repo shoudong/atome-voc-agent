@@ -4,9 +4,11 @@ import type { TrendPoint } from '@/lib/types';
 
 interface TrendChartProps {
   data: TrendPoint[];
+  selectedDate?: string | null;
+  onDateClick?: (date: string) => void;
 }
 
-export default function TrendChart({ data }: TrendChartProps) {
+export default function TrendChart({ data, selectedDate, onDateClick }: TrendChartProps) {
   if (!data.length) {
     return <div className="h-[220px] flex items-center justify-center text-gray-400">No trend data</div>;
   }
@@ -55,6 +57,9 @@ export default function TrendChart({ data }: TrendChartProps) {
     data.map((d, i) => `L${toX(i)},${toY(d.total)}`).join(' ') +
     ` L${toX(data.length - 1)},${toY(0)} L${toX(0)},${toY(0)} Z`;
 
+  // Hit zone width for each data point
+  const hitW = data.length > 1 ? xStep : chartW;
+
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" preserveAspectRatio="xMidYMid meet">
@@ -98,8 +103,25 @@ export default function TrendChart({ data }: TrendChartProps) {
           0
         </text>
 
+        {/* Selected date highlight column */}
+        {selectedDate && (() => {
+          const idx = data.findIndex((d) => d.date === selectedDate);
+          if (idx < 0) return null;
+          return (
+            <rect
+              x={toX(idx) - hitW / 2}
+              y={padding.top}
+              width={hitW}
+              height={chartH}
+              fill="#141c30"
+              opacity={0.08}
+              rx={3}
+            />
+          );
+        })()}
+
         {/* Filled area under total */}
-        <path d={areaPath} fill="#F0356A" opacity="0.06" />
+        <path d={areaPath} fill="#141c30" opacity="0.06" />
 
         {/* Severity lines (behind total) */}
         {severityLines
@@ -132,27 +154,51 @@ export default function TrendChart({ data }: TrendChartProps) {
         {/* Total line (on top) */}
         <polyline
           fill="none"
-          stroke="#F0356A"
+          stroke="#141c30"
           strokeWidth="2.5"
           points={totalPoints}
           strokeLinejoin="round"
         />
-        {showDots && data.map((d, i) => (
-          <g key={d.date}>
-            <circle cx={toX(i)} cy={toY(d.total)} r={showDotValues ? 4 : 2.5} fill="#F0356A" />
-            {showDotValues && d.total > 0 && (
-              <text
-                x={toX(i)}
-                y={toY(d.total) - 8}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="600"
-                fill="#374151"
-              >
-                {d.total}
-              </text>
-            )}
-          </g>
+        {showDots && data.map((d, i) => {
+          const isSelected = d.date === selectedDate;
+          return (
+            <g key={d.date}>
+              <circle
+                cx={toX(i)}
+                cy={toY(d.total)}
+                r={isSelected ? 6 : showDotValues ? 4 : 2.5}
+                fill={isSelected ? '#141c30' : '#141c30'}
+                stroke={isSelected ? '#fff' : 'none'}
+                strokeWidth={isSelected ? 2 : 0}
+              />
+              {showDotValues && d.total > 0 && (
+                <text
+                  x={toX(i)}
+                  y={toY(d.total) - 10}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="600"
+                  fill={isSelected ? '#141c30' : '#374151'}
+                >
+                  {d.total}
+                </text>
+              )}
+            </g>
+          );
+        })}
+
+        {/* Invisible click zones for each data point */}
+        {onDateClick && data.map((d, i) => (
+          <rect
+            key={`hit-${d.date}`}
+            x={toX(i) - hitW / 2}
+            y={padding.top}
+            width={hitW}
+            height={chartH + padding.bottom}
+            fill="transparent"
+            className="cursor-pointer"
+            onClick={() => onDateClick(d.date)}
+          />
         ))}
 
         {/* X labels — show every Nth label */}
@@ -162,6 +208,7 @@ export default function TrendChart({ data }: TrendChartProps) {
           const isLast = i === data.length - 1;
           const isNth = i % labelEvery === 0;
           if (!isFirst && !isLast && !isNth) return null;
+          const isSelected = d.date === selectedDate;
           return (
             <text
               key={d.date}
@@ -169,7 +216,8 @@ export default function TrendChart({ data }: TrendChartProps) {
               y={h - 5}
               textAnchor="middle"
               fontSize="10.5"
-              fill="#9CA3AF"
+              fill={isSelected ? '#141c30' : '#9CA3AF'}
+              fontWeight={isSelected ? '700' : '400'}
             >
               {d.date.slice(5)}
             </text>
@@ -177,9 +225,9 @@ export default function TrendChart({ data }: TrendChartProps) {
         })}
       </svg>
 
-      <div className="flex gap-3.5 flex-wrap mt-2">
+      <div className="flex gap-3.5 flex-wrap mt-2 items-center">
         {[
-          { label: 'Total trend', color: '#F0356A' },
+          { label: 'Total trend', color: '#141c30' },  /* Atome navy */
           { label: 'S4 Critical', color: '#DC2626' },
           { label: 'S3 High', color: '#F97316' },
           { label: 'S2 Medium', color: '#F59E0B' },
@@ -190,6 +238,11 @@ export default function TrendChart({ data }: TrendChartProps) {
             {item.label}
           </div>
         ))}
+        {onDateClick && (
+          <span className="ml-auto text-[10.5px] text-gray-400">
+            Click a data point to drill down
+          </span>
+        )}
       </div>
     </div>
   );

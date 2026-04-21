@@ -26,6 +26,7 @@ export default function AlertsPage() {
             body: 'Thread by PH finance influencer @PisoWisePH alleges APR misrepresentation.',
             delivery_status: 'sent', acknowledged_at: null, sent_at: '2026-04-19T14:05:00Z',
             created_at: '2026-04-19T14:01:00Z',
+            source_url: 'https://x.com/PisoWisePH/status/1234567890', source_created_at: '2026-04-19T14:00:00Z', source_author: 'PisoWisePH',
           },
           {
             id: 2, incident_id: 2, post_id: null, alert_type: 'immediate', severity: 'critical',
@@ -34,6 +35,7 @@ export default function AlertsPage() {
             body: '184 comments. Users unable to complete repayment through GCash integration.',
             delivery_status: 'sent', acknowledged_at: '2026-04-19T11:30:00Z', sent_at: '2026-04-19T11:05:00Z',
             created_at: '2026-04-19T11:01:00Z',
+            source_url: 'https://reddit.com/r/Philippines/comments/abc123/', source_created_at: '2026-04-19T11:00:00Z', source_author: 'user123',
           },
           {
             id: 3, incident_id: 3, post_id: null, alert_type: 'queue', severity: 'high',
@@ -42,6 +44,7 @@ export default function AlertsPage() {
             body: '23 posts reporting checkout crash on Android after 17 Apr release.',
             delivery_status: 'sent', acknowledged_at: null, sent_at: '2026-04-19T08:15:00Z',
             created_at: '2026-04-19T08:10:00Z',
+            source_url: 'https://x.com/user456/status/9876543210', source_created_at: '2026-04-19T08:00:00Z', source_author: 'user456',
           },
           {
             id: 4, incident_id: null, post_id: null, alert_type: 'digest', severity: 'low',
@@ -50,6 +53,7 @@ export default function AlertsPage() {
             body: 'Daily VoC Digest - 14 incidents in last 24h.',
             delivery_status: 'sent', acknowledged_at: null, sent_at: '2026-04-19T09:00:00Z',
             created_at: '2026-04-19T09:00:00Z',
+            source_url: null, source_created_at: null, source_author: null,
           },
         ]);
         setTotal(4);

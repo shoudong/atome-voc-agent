@@ -8,7 +8,7 @@ import httpx
 
 from backend.database import async_session
 from backend.models.post import Post
-from backend.services.dedup import is_official_account, is_too_short, mentions_brand
+from backend.services.dedup import is_official_account, is_noise_account, is_ph_relevant, is_too_short, mentions_brand
 from backend.services.llm_annotator import annotate_unannotated_posts
 from backend.services.clustering import cluster_posts
 from backend.services.alerting import check_and_send_alerts
@@ -26,8 +26,21 @@ KEYWORDS = [
     "Atome refund Philippines",
     "Atome BNPL complaint",
     "Atome payment failed",
-    "Atome bayad",
     "Atome credit limit",
+    "Atome collection Philippines",
+    "Atome overdue Philippines",
+    "Atome debt collection",
+    "Atome home visit",
+    "Atome harassment",
+    "Atome threatening",
+    # Taglish / Filipino keywords
+    "Atome bayad",
+    "Atome hindi mabayaran",
+    "Atome nabawasan limit",
+    "Atome OTP di gumagana",
+    "Atome ang laki ng interest",
+    "Atome nagbabanta",
+    "Atome tumawag collection",
 ]
 
 
@@ -120,6 +133,10 @@ async def _brave_search(
         if not mentions_brand(text):
             continue
         if is_official_account(author):
+            continue
+        if is_noise_account(author):
+            continue
+        if not is_ph_relevant(text):
             continue
 
         posts.append({

@@ -3,12 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --pink-50: #FFF1F5;
-  --pink-100: #FFD9E4;
-  --pink-300: #FF8AAE;
-  --pink-500: #F0356A;
-  --pink-600: #D81E56;
-  --pink-700: #B21548;
+  --brand-50: #f0f1f5;
+  --brand-100: #e0e3ec;
+  --brand-300: #8b95b0;
+  --brand-500: #141c30;
+  --brand-600: #0d1220;
+  --brand-700: #080c18;
+  --accent: #f0ff5f;
+  --coral: #ff5844;
+  --beige: #e6e6de;
 }
 
 body {

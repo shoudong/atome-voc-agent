@@ -20,9 +20,9 @@ export default function AlertFeedItem({ alert }: AlertFeedItemProps) {
     <div
       className={`flex gap-3 p-3.5 rounded-[10px] border transition-all ${
         isNew
-          ? 'border-l-[3px] border-l-pink-500 border-gray-200 bg-gradient-to-r from-pink-50/60 to-white'
+          ? 'border-l-[3px] border-l-brand-500 border-gray-200 bg-gradient-to-r from-brand-50/60 to-white'
           : 'border-gray-200 bg-white'
-      } hover:border-pink-300 hover:shadow-sm`}
+      } hover:border-brand-300 hover:shadow-sm`}
     >
       <div
         className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-extrabold text-white ${channelIcon.bg}`}
@@ -50,7 +50,7 @@ export default function AlertFeedItem({ alert }: AlertFeedItemProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" />
             </svg>
-            <a href={alert.source_url} target="_blank" rel="noopener noreferrer" className="text-pink-600 hover:underline">
+            <a href={alert.source_url} target="_blank" rel="noopener noreferrer" className="text-brand-500 hover:text-coral hover:underline">
               @{alert.source_author || 'source'}
             </a>
             {alert.source_created_at && (
@@ -62,7 +62,7 @@ export default function AlertFeedItem({ alert }: AlertFeedItemProps) {
         )}
         {alert.recipients && alert.recipients.length > 0 && (
           <div className="mt-1.5 text-[11px] text-gray-500">
-            Routed to: <span className="text-pink-700 font-semibold">{alert.recipients.join(', ')}</span>
+            Routed to: <span className="text-brand-500 font-semibold">{alert.recipients.join(', ')}</span>
           </div>
         )}
       </div>

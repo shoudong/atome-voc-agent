@@ -7,24 +7,25 @@ interface RoutingRule {
   id: number;
   category: string;
   severity_min: string;
+  primary_owner: string;
   departments: string[];
   escalate_to: string[] | null;
   channels: string[];
   is_active: boolean;
 }
 
-// Default routing rules matching the plan
+// Default routing rules — primary owner is the single accountable team, departments are secondary stakeholders
 const DEFAULT_RULES: RoutingRule[] = [
-  { id: 1, category: 'debt_collection', severity_min: 'low', departments: ['Collections', 'Compliance'], escalate_to: ['CEO Office'], channels: ['slack', 'lark'], is_active: true },
-  { id: 2, category: 'transaction', severity_min: 'low', departments: ['Product', 'CS', 'Ops'], escalate_to: null, channels: ['slack'], is_active: true },
-  { id: 3, category: 'app_bug', severity_min: 'low', departments: ['Product', 'Engineering'], escalate_to: null, channels: ['slack'], is_active: true },
-  { id: 4, category: 'interest_rate', severity_min: 'low', departments: ['CEO Office', 'Compliance', 'PR'], escalate_to: ['CEO Office'], channels: ['slack', 'email'], is_active: true },
-  { id: 5, category: 'fraud', severity_min: 'medium', departments: ['Risk', 'Security'], escalate_to: ['CEO Office'], channels: ['slack', 'lark', 'email'], is_active: true },
-  { id: 6, category: 'security', severity_min: 'medium', departments: ['Risk', 'Security'], escalate_to: ['CEO Office'], channels: ['slack', 'lark', 'email'], is_active: true },
-  { id: 7, category: 'customer_service', severity_min: 'low', departments: ['CS Head', 'CS Ops'], escalate_to: null, channels: ['slack'], is_active: true },
-  { id: 8, category: 'refund', severity_min: 'low', departments: ['Product', 'CS'], escalate_to: null, channels: ['slack'], is_active: true },
-  { id: 9, category: 'spend_limit', severity_min: 'low', departments: ['Product', 'Risk'], escalate_to: null, channels: ['slack'], is_active: true },
-  { id: 10, category: 'account', severity_min: 'low', departments: ['Product', 'CS'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 1, category: 'debt_collection', severity_min: 'low', primary_owner: 'Collections', departments: ['Compliance'], escalate_to: ['CEO Office'], channels: ['slack', 'lark'], is_active: true },
+  { id: 2, category: 'transaction', severity_min: 'low', primary_owner: 'Product', departments: ['CS', 'Ops'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 3, category: 'app_bug', severity_min: 'low', primary_owner: 'Engineering', departments: ['Product'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 4, category: 'interest_rate', severity_min: 'low', primary_owner: 'Compliance', departments: ['CEO Office', 'PR'], escalate_to: ['CEO Office'], channels: ['slack', 'email'], is_active: true },
+  { id: 5, category: 'fraud', severity_min: 'medium', primary_owner: 'Risk', departments: ['Security'], escalate_to: ['CEO Office'], channels: ['slack', 'lark', 'email'], is_active: true },
+  { id: 6, category: 'security', severity_min: 'medium', primary_owner: 'Security', departments: ['Risk'], escalate_to: ['CEO Office'], channels: ['slack', 'lark', 'email'], is_active: true },
+  { id: 7, category: 'customer_service', severity_min: 'low', primary_owner: 'CS Head', departments: ['CS Ops'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 8, category: 'refund', severity_min: 'low', primary_owner: 'CS', departments: ['Product'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 9, category: 'spend_limit', severity_min: 'low', primary_owner: 'Product', departments: ['Risk'], escalate_to: null, channels: ['slack'], is_active: true },
+  { id: 10, category: 'account', severity_min: 'low', primary_owner: 'CS', departments: ['Product'], escalate_to: null, channels: ['slack'], is_active: true },
 ];
 
 export default function RoutingPage() {

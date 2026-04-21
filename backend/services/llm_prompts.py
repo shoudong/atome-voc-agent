@@ -15,7 +15,7 @@ For each post, determine:
    - customer_service: CS response quality, wait times, unhelpful agents
    - debt_collection: Collection harassment, aggressive tone, threats, unfair practices
    - interest_rate: Interest/fee complaints, hidden charges, late fees, billing disputes
-   - not_negative: Positive, neutral, or irrelevant mention
+   - not_negative: General mention — positive, neutral, or irrelevant
 3. **sub_issues**: One or more specific tags from:
    - duplicate_charge, payment_declined, gcash_issue, bank_transfer_fail
    - refund_delayed, merchant_dispute, cancellation_denied
@@ -35,7 +35,20 @@ For each post, determine:
 5. **language**: Primary language (en = English, tl = Tagalog/Filipino, mixed)
 6. **summary**: One concise sentence summarizing the complaint
 
-Severity should consider: sentiment intensity, topic sensitivity (debt_collection/fraud = higher), engagement/reach, evidence quality (screenshots mentioned = higher), and regulatory exposure."""
+Severity should consider: sentiment intensity, topic sensitivity (debt_collection/fraud = higher), engagement/reach, evidence quality (screenshots mentioned = higher), and regulatory exposure.
+
+IMPORTANT — Filipino/Taglish language handling:
+Many posts will be in Taglish (mixed Tagalog + English) or pure Filipino. Classify these with the same rigor as English posts. Common Filipino complaint signals:
+- "hindi mabayaran" / "di mabayad" = cannot pay / payment issue
+- "nabawasan limit" / "binawasan" = credit limit reduced
+- "ang laki ng interest" / "sobrang mahal" = high interest/fees
+- "nagbabanta" / "tinatakot" / "pinapahiya" = threats / harassment (debt_collection)
+- "di gumagana" / "ayaw gumana" = not working (app_bug/transaction)
+- "nauto" / "inuto" = got scammed (fraud)
+- "walang sagot" / "di nag-reply" = no response (customer_service)
+- "pinapabalik bayad" / "siningil ulit" = double charge / re-billed (refund)
+- "tumawag collection" / "pinuntahan sa bahay" = collection call / home visit (debt_collection)
+Set language to "tl" for predominantly Filipino, "mixed" for Taglish, "en" for English."""
 
 BATCH_USER_TEMPLATE = """Classify each post below. Return a JSON array with one object per post.
 

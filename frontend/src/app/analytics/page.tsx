@@ -3,21 +3,22 @@
 import { useEffect, useState } from 'react';
 import TrendChart from '@/components/TrendChart';
 import SeverityDonut from '@/components/SeverityDonut';
+import DateRangeSelector from '@/components/DateRangeSelector';
 import { CATEGORIES } from '@/lib/constants';
-import type { TrendPoint, CategoryCount, SeverityCount } from '@/lib/types';
+import type { TrendPoint, CategoryCount, SeverityCount, TimeRange } from '@/lib/types';
 import * as api from '@/lib/api';
 
 export default function AnalyticsPage() {
-  const [days, setDays] = useState(7);
+  const [timeRange, setTimeRange] = useState<TimeRange>({ mode: 'preset', days: 7 });
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [categories, setCategories] = useState<CategoryCount[]>([]);
   const [severity, setSeverity] = useState<{ items: SeverityCount[]; total: number } | null>(null);
 
   useEffect(() => {
     Promise.all([
-      api.getTrend(days),
-      api.getCategories(days),
-      api.getSeverityDistribution(days),
+      api.getTrend(timeRange),
+      api.getCategories(timeRange),
+      api.getSeverityDistribution(timeRange),
     ])
       .then(([trendData, catData, sevData]) => {
         setTrend(trendData.points || []);
@@ -25,7 +26,7 @@ export default function AnalyticsPage() {
         setSeverity(sevData);
       })
       .catch(() => {});
-  }, [days]);
+  }, [timeRange]);
 
   const maxCatCount = Math.max(...categories.map((c) => c.count), 1);
 
@@ -36,19 +37,15 @@ export default function AnalyticsPage() {
           <h1 className="text-[22px] font-bold text-gray-900 tracking-tight">Analytics</h1>
           <p className="text-[13px] text-gray-500 mt-1">Complaint trends and distributions</p>
         </div>
-        <div className="flex gap-1.5 bg-white p-1 border border-gray-200 rounded-[10px]">
-          {[{ label: '7d', value: 7 }, { label: '30d', value: 30 }, { label: '90d', value: 90 }].map((r) => (
-            <button
-              key={r.value}
-              onClick={() => setDays(r.value)}
-              className={`px-3 py-1.5 text-[12.5px] rounded-md ${
-                days === r.value ? 'bg-pink-500 text-white font-semibold' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        <DateRangeSelector
+          value={timeRange}
+          onChange={setTimeRange}
+          presets={[
+            { label: '7d', days: 7 },
+            { label: '30d', days: 30 },
+            { label: '90d', days: 90 },
+          ]}
+        />
       </div>
 
       {/* Trend chart */}
@@ -74,7 +71,7 @@ export default function AnalyticsPage() {
                 <div className="text-gray-700 truncate">{label}</div>
                 <div className="bg-gray-100 rounded h-2.5 overflow-hidden">
                   <div
-                    className="h-full rounded bg-gradient-to-r from-pink-500 to-pink-300"
+                    className="h-full rounded bg-gradient-to-r from-brand-500 to-brand-300"
                     style={{ width: `${(cat.count / maxCatCount) * 100}%` }}
                   />
                 </div>

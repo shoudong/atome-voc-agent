@@ -5,6 +5,7 @@ from backend.models.alert import Alert
 from backend.models.feedback import Feedback
 from backend.models.taxonomy import TaxonomyCategory, TaxonomySubIssue
 from backend.models.routing import RoutingRule
+from backend.models.lark_bot import LarkBot
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "TaxonomyCategory",
     "TaxonomySubIssue",
     "RoutingRule",
+    "LarkBot",
 ]

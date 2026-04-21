@@ -15,7 +15,10 @@ class RoutingRule(Base):
     severity_min: Mapped[str] = mapped_column(
         String(20), default="low"
     )  # route only if severity >= this
-    departments: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)
+    primary_owner: Mapped[str] = mapped_column(
+        String(100), nullable=False, default=""
+    )  # single accountable team
+    departments: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False)  # secondary stakeholders
     escalate_to: Mapped[list[str] | None] = mapped_column(
         ARRAY(String)
     )  # extra recipients on critical
