@@ -8,6 +8,10 @@ class KPIOverview(BaseModel):
     critical_incidents: int
     open_incidents: int
     avg_detect_to_alert_min: float | None
+    # Previous period comparisons
+    prev_total_mentions: int = 0
+    prev_negative_pct: float = 0
+    prev_critical_incidents: int = 0
 
 
 class TrendPoint(BaseModel):

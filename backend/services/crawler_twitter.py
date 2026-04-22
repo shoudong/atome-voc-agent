@@ -1,5 +1,6 @@
-"""X/Twitter crawler using Brave Search API."""
+"""X/Twitter crawler — Apify Tweet Scraper (preferred), Brave Search fallback."""
 
+import asyncio
 import logging
 import re
 from datetime import datetime, timedelta
@@ -19,6 +20,12 @@ from sqlalchemy.dialects.postgresql import insert
 logger = logging.getLogger(__name__)
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
+
+# Apify Tweet Scraper (apidojo~tweet-scraper — most popular, 138M+ runs)
+APIFY_TWEET_ACTOR_ID = "apidojo~tweet-scraper"
+APIFY_BASE = "https://api.apify.com/v2"
+APIFY_POLL_INTERVAL = 10  # seconds
+APIFY_TIMEOUT = 300  # max wait seconds
 
 KEYWORDS = [
     "Atome credit card Philippines",
@@ -45,14 +52,199 @@ KEYWORDS = [
 
 
 async def crawl_twitter(lookback_hours: int = 24):
-    """Crawl X/Twitter via Brave Search for Atome mentions."""
-    if not settings.brave_api_key:
-        logger.warning("BRAVE_API_KEY not set, skipping Twitter crawl")
+    """Crawl X/Twitter for Atome mentions and run full pipeline."""
+    logger.info(f"Starting Twitter/X crawl (lookback={lookback_hours}h)")
+
+    # Priority: Apify (can actually scrape X) → Brave (fallback, limited X indexing)
+    if settings.apify_api_token:
+        all_posts = await _crawl_via_apify(lookback_hours)
+        # Fall back to Brave if Apify returned nothing
+        if not all_posts and settings.brave_api_key:
+            logger.warning("Apify returned 0 tweets, falling back to Brave Search")
+            all_posts = await _crawl_via_brave(lookback_hours)
+    elif settings.brave_api_key:
+        all_posts = await _crawl_via_brave(lookback_hours)
+    else:
+        logger.warning("No APIFY_API_TOKEN or BRAVE_API_KEY set, skipping Twitter crawl")
         return
 
-    logger.info(f"Starting Twitter/X crawl via Brave Search (lookback={lookback_hours}h)")
-    all_posts = []
-    seen_urls = set()
+    saved = await _save_posts(all_posts)
+    logger.info(f"Twitter/X crawl complete: {len(all_posts)} found, {saved} new")
+
+    await annotate_unannotated_posts()
+    await cluster_posts(lookback_hours)
+    await check_and_send_alerts()
+
+
+# ── Apify path (preferred) ──────────────────────────────────
+
+
+async def _crawl_via_apify(lookback_hours: int) -> list[dict]:
+    """Use Apify Tweet Scraper to scrape X/Twitter posts."""
+    logger.info("Using Apify Tweet Scraper (apidojo)")
+    all_posts: list[dict] = []
+    seen_urls: set[str] = set()
+    cutoff = datetime.utcnow() - timedelta(hours=lookback_hours)
+
+    # Build X search URLs for each keyword
+    search_urls = []
+    for keyword in KEYWORDS:
+        encoded = keyword.replace(" ", "%20")
+        search_urls.append({"url": f"https://x.com/search?q={encoded}&f=live"})
+
+    # Limit items based on lookback period
+    max_items = 50 if lookback_hours <= 24 else 200 if lookback_hours <= 168 else 500
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        try:
+            # Start the Apify actor run
+            run_url = f"{APIFY_BASE}/acts/{APIFY_TWEET_ACTOR_ID}/runs"
+            resp = await client.post(
+                run_url,
+                params={"token": settings.apify_api_token},
+                json={
+                    "startUrls": search_urls,
+                    "maxItems": max_items,
+                    "addUserInfo": False,
+                    "scrapeTweetReplies": False,
+                },
+            )
+            resp.raise_for_status()
+            run_data = resp.json().get("data", {})
+            run_id = run_data.get("id")
+            dataset_id = run_data.get("defaultDatasetId")
+            logger.info(f"Apify tweet run started: {run_id} (dataset: {dataset_id})")
+
+            # Poll until finished
+            status = "RUNNING"
+            elapsed = 0
+            while elapsed < APIFY_TIMEOUT:
+                await asyncio.sleep(APIFY_POLL_INTERVAL)
+                elapsed += APIFY_POLL_INTERVAL
+                status_resp = await client.get(
+                    f"{APIFY_BASE}/actor-runs/{run_id}",
+                    params={"token": settings.apify_api_token},
+                )
+                status_resp.raise_for_status()
+                run_info = status_resp.json().get("data", {})
+                status = run_info.get("status")
+                items_count = run_info.get("stats", {}).get("datasetItems", 0)
+                logger.info(f"Apify tweet run {run_id}: status={status}, items={items_count}, elapsed={elapsed}s")
+                if status in ("SUCCEEDED", "FAILED", "ABORTED", "TIMED-OUT"):
+                    break
+
+            if status != "SUCCEEDED":
+                logger.error(f"Apify tweet run {run_id} ended with status: {status}")
+                return []
+
+            # Fetch results from dataset
+            items_resp = await client.get(
+                f"{APIFY_BASE}/datasets/{dataset_id}/items",
+                params={"token": settings.apify_api_token, "format": "json"},
+            )
+            items_resp.raise_for_status()
+            items = items_resp.json()
+
+            logger.info(f"Apify returned {len(items)} tweets")
+
+            for item in items:
+                try:
+                    post = _parse_apify_tweet(item, cutoff)
+                    if post and post["url"] not in seen_urls:
+                        seen_urls.add(post["url"])
+                        all_posts.append(post)
+                except Exception:
+                    logger.exception("Failed to parse Apify tweet")
+
+        except Exception:
+            logger.exception("Apify Twitter crawl failed")
+
+    logger.info(f"Apify Twitter: {len(all_posts)} posts after filtering")
+    return all_posts
+
+
+def _parse_apify_tweet(item: dict, cutoff: datetime) -> dict | None:
+    """Parse an Apify tweet-scraper result into our post format.
+
+    Fields from apidojo~tweet-scraper:
+      id, url, text/fullText, author.userName, createdAt, likeCount, replyCount, retweetCount
+    """
+    # Skip retweets
+    if item.get("isRetweet"):
+        return None
+
+    text = item.get("fullText", "") or item.get("text", "") or ""
+    url = item.get("url", "") or item.get("twitterUrl", "") or ""
+    post_id = str(item.get("id", ""))
+
+    # Author info
+    author_data = item.get("author", {})
+    if isinstance(author_data, dict):
+        author = author_data.get("userName", "") or author_data.get("name", "") or ""
+    else:
+        author = str(author_data) if author_data else ""
+
+    if not post_id or not url:
+        return None
+
+    # Parse created time — format: "Tue Apr 21 08:35:45 +0000 2026"
+    created_str = item.get("createdAt", "")
+    created = _parse_twitter_date(created_str)
+
+    if created < cutoff:
+        return None
+
+    # Filters
+    if is_too_short(text):
+        return None
+    if not mentions_brand(text):
+        return None
+    if is_official_account(author):
+        return None
+    if is_noise_account(author):
+        return None
+    if not is_ph_relevant(text):
+        return None
+
+    return {
+        "platform": "twitter",
+        "brand": "atome_ph",
+        "post_id": post_id,
+        "url": url,
+        "author_handle": author,
+        "content_text": text,
+        "created_at": created,
+        "engagement_likes": item.get("likeCount", 0) or 0,
+        "engagement_replies": item.get("replyCount", 0) or 0,
+        "engagement_reposts": item.get("retweetCount", 0) or 0,
+        "raw_json": item,
+    }
+
+
+def _parse_twitter_date(date_str: str) -> datetime:
+    """Parse Twitter date format: 'Tue Apr 21 08:35:45 +0000 2026'."""
+    if not date_str:
+        return datetime.utcnow()
+    try:
+        return datetime.strptime(date_str, "%a %b %d %H:%M:%S %z %Y").replace(tzinfo=None)
+    except (ValueError, TypeError):
+        pass
+    # Fallback: try ISO format
+    try:
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00")).replace(tzinfo=None)
+    except (ValueError, TypeError):
+        pass
+    return datetime.utcnow()
+
+
+# ── Brave Search path (fallback) ────────────────────────────
+
+
+async def _crawl_via_brave(lookback_hours: int) -> list[dict]:
+    """Use Brave Search API as fallback — limited X/Twitter indexing."""
+    logger.info("Using Brave Search for Twitter crawl (fallback)")
+    all_posts: list[dict] = []
+    seen_urls: set[str] = set()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         for keyword in KEYWORDS:
@@ -66,12 +258,7 @@ async def crawl_twitter(lookback_hours: int = 24):
             except Exception:
                 logger.exception(f"Failed to search keyword '{keyword}'")
 
-    saved = await _save_posts(all_posts)
-    logger.info(f"Twitter/X crawl complete: {len(all_posts)} found, {saved} new")
-
-    await annotate_unannotated_posts()
-    await cluster_posts()
-    await check_and_send_alerts()
+    return all_posts
 
 
 async def _brave_search(
@@ -154,6 +341,9 @@ async def _brave_search(
         })
 
     return posts
+
+
+# ── Shared helpers ───────────────────────────────────────────
 
 
 def _is_tweet_url(url: str) -> bool:

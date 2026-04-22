@@ -56,6 +56,9 @@ export default function OverviewPage() {
           critical_incidents: 4,
           open_incidents: 14,
           avg_detect_to_alert_min: 11,
+          prev_total_mentions: 768,
+          prev_negative_pct: 27.8,
+          prev_critical_incidents: 2,
         });
         setTrend([
           { date: '2026-04-13', total: 32, critical: 2, high: 5, medium: 10, low: 10, none: 5 },
@@ -133,6 +136,34 @@ export default function OverviewPage() {
 
   const maxCatCount = Math.max(...categories.map((c) => c.count), 1);
 
+  // Compute real deltas from previous period
+  const mentionsDelta = (() => {
+    if (!kpi) return { text: '', dir: 'neutral' as const };
+    const prev = kpi.prev_total_mentions;
+    if (prev === 0) return { text: kpi.total_mentions > 0 ? 'New data' : 'No data', dir: 'neutral' as const };
+    const pct = ((kpi.total_mentions - prev) / prev * 100).toFixed(1);
+    const num = Number(pct);
+    if (num > 0) return { text: `+${pct}% vs prev ${rangeLabel(timeRange)}`, dir: 'up' as const };
+    if (num < 0) return { text: `${pct}% vs prev ${rangeLabel(timeRange)}`, dir: 'down' as const };
+    return { text: `No change vs prev ${rangeLabel(timeRange)}`, dir: 'neutral' as const };
+  })();
+
+  const negPctDelta = (() => {
+    if (!kpi) return { text: '', dir: 'neutral' as const };
+    const diff = +(kpi.negative_pct - kpi.prev_negative_pct).toFixed(1);
+    if (diff > 0) return { text: `+${diff} pts vs prev period`, dir: 'up' as const };
+    if (diff < 0) return { text: `${diff} pts vs prev period`, dir: 'down' as const };
+    return { text: 'No change vs prev period', dir: 'neutral' as const };
+  })();
+
+  const criticalDelta = (() => {
+    if (!kpi) return { text: '', dir: 'neutral' as const };
+    const diff = kpi.critical_incidents - kpi.prev_critical_incidents;
+    if (diff > 0) return { text: `+${diff} vs prev period`, dir: 'up' as const };
+    if (diff < 0) return { text: `${diff} vs prev period`, dir: 'down' as const };
+    return { text: 'No change vs prev period', dir: 'neutral' as const };
+  })();
+
   return (
     <div>
       {/* Page header */}
@@ -153,35 +184,31 @@ export default function OverviewPage() {
         <KPICard
           label="Total mentions"
           value={kpi?.total_mentions ?? '-'}
-          delta={`▲ 9.6% vs last ${rangeLabel(timeRange)}`}
-          deltaDirection="up"
+          delta={mentionsDelta.text}
+          deltaDirection={mentionsDelta.dir}
         />
         <KPICard
           label="Negative complaints"
           value={kpi?.negative_complaints ?? '-'}
           suffix={kpi ? `(${kpi.negative_pct}%)` : ''}
-          delta="▲ 5.2 pts vs last period"
-          deltaDirection="up"
+          delta={negPctDelta.text}
+          deltaDirection={negPctDelta.dir}
         />
         <KPICard
           label="Critical incidents (S3+S4)"
           value={kpi?.critical_incidents ?? '-'}
-          delta="▲ 2 new in last 24h"
-          deltaDirection="up"
+          delta={criticalDelta.text}
+          deltaDirection={criticalDelta.dir}
           critical
         />
         <KPICard
           label="Detect-to-alert latency"
-          value={kpi?.avg_detect_to_alert_min ?? 11}
-          suffix="min"
-          delta="▼ 19 min vs target 30m"
-          deltaDirection="down"
+          value={kpi?.avg_detect_to_alert_min ?? '-'}
+          suffix={kpi?.avg_detect_to_alert_min ? 'min' : ''}
         />
         <KPICard
           label="Open incidents"
           value={kpi?.open_incidents ?? '-'}
-          delta="▲ 1 vs yesterday"
-          deltaDirection="up"
         />
       </div>
 

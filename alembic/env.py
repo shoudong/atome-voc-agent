@@ -13,6 +13,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Override sqlalchemy.url from DATABASE_URL env var if set (Fly.io / production)
+db_url = os.environ.get("DATABASE_URL")
+if db_url:
+    # Normalise postgres:// to postgresql:// for psycopg2
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    # Strip asyncpg driver if present (alembic uses sync psycopg2)
+    db_url = db_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    config.set_main_option("sqlalchemy.url", db_url)
+
 target_metadata = Base.metadata
 
 

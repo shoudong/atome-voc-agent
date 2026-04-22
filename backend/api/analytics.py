@@ -60,6 +60,12 @@ async def overview(
     start_dt, end_dt = resolve_time_range(days, since, until)
     time_filter = and_(Post.created_at >= start_dt, Post.created_at < end_dt)
 
+    # Previous period (same duration, immediately before current)
+    period_len = end_dt - start_dt
+    prev_start = start_dt - period_len
+    prev_end = start_dt
+    prev_filter = and_(Post.created_at >= prev_start, Post.created_at < prev_end)
+
     total = (
         await db.execute(select(func.count()).select_from(Post).where(time_filter))
     ).scalar() or 0
@@ -94,6 +100,33 @@ async def overview(
         )
     ).scalar() or 0
 
+    # Previous period stats
+    prev_total = (
+        await db.execute(select(func.count()).select_from(Post).where(prev_filter))
+    ).scalar() or 0
+
+    prev_negative = (
+        await db.execute(
+            select(func.count())
+            .select_from(Post)
+            .where(and_(prev_filter, Post.is_negative == True))
+        )
+    ).scalar() or 0
+
+    prev_inc_filter = and_(Incident.last_seen >= prev_start, Incident.last_seen < prev_end)
+    prev_critical_inc = (
+        await db.execute(
+            select(func.count())
+            .select_from(Incident)
+            .where(
+                and_(
+                    prev_inc_filter,
+                    Incident.severity.in_(["critical", "high"]),
+                )
+            )
+        )
+    ).scalar() or 0
+
     return KPIOverview(
         total_mentions=total,
         negative_complaints=negative,
@@ -101,6 +134,9 @@ async def overview(
         critical_incidents=critical_inc,
         open_incidents=open_inc,
         avg_detect_to_alert_min=None,
+        prev_total_mentions=prev_total,
+        prev_negative_pct=round(prev_negative / prev_total * 100, 1) if prev_total else 0,
+        prev_critical_incidents=prev_critical_inc,
     )
 
 

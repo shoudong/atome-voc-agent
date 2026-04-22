@@ -83,6 +83,9 @@ export interface KPIOverview {
   critical_incidents: number;
   open_incidents: number;
   avg_detect_to_alert_min: number | null;
+  prev_total_mentions: number;
+  prev_negative_pct: number;
+  prev_critical_incidents: number;
 }
 
 export interface TrendPoint {

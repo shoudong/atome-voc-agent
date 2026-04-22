@@ -94,6 +94,16 @@ export const login = (email: string, password: string) =>
 export const register = (data: any) =>
   fetchJSON<any>('/api/auth/register', { method: 'POST', body: JSON.stringify(data) });
 
+// Routing Rules
+export const getRoutingRules = () =>
+  fetchJSON<any>('/api/routing');
+export const createRoutingRule = (data: any) =>
+  fetchJSON<any>('/api/routing', { method: 'POST', body: JSON.stringify(data) });
+export const updateRoutingRule = (id: number, data: any) =>
+  fetchJSON<any>(`/api/routing/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+export const deleteRoutingRule = (id: number) =>
+  fetchJSON<any>(`/api/routing/${id}`, { method: 'DELETE' });
+
 // Lark Bots
 export const getLarkBots = () => fetchJSON<any[]>('/api/lark-bots');
 export const createLarkBot = (data: any) =>

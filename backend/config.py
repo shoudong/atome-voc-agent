@@ -1,10 +1,41 @@
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
+
+
+def _strip_sslmode(url: str) -> str:
+    """Remove sslmode query param — asyncpg does not accept it."""
+    parts = urlsplit(url)
+    qs = parse_qs(parts.query)
+    qs.pop("sslmode", None)
+    new_query = urlencode(qs, doseq=True)
+    return urlunsplit(parts._replace(query=new_query))
 
 
 class Settings(BaseSettings):
     # Database
     database_url: str = "postgresql+asyncpg://atome:atome_secret@localhost:5432/atome_voc"
     database_url_sync: str = "postgresql://atome:atome_secret@localhost:5432/atome_voc"
+
+    @model_validator(mode="after")
+    def _fix_database_urls(self):
+        """Normalise Fly.io / Heroku-style postgres:// URLs."""
+        if self.database_url.startswith("postgres://"):
+            self.database_url = self.database_url.replace(
+                "postgres://", "postgresql+asyncpg://", 1
+            )
+        self.database_url = _strip_sslmode(self.database_url)
+        if self.database_url_sync.startswith("postgres://"):
+            self.database_url_sync = self.database_url_sync.replace(
+                "postgres://", "postgresql://", 1
+            )
+        # If only DATABASE_URL is set (Fly), derive the sync variant
+        if "asyncpg" in self.database_url and self.database_url_sync == "postgresql://atome:atome_secret@localhost:5432/atome_voc":
+            self.database_url_sync = self.database_url.replace(
+                "postgresql+asyncpg://", "postgresql://", 1
+            )
+        return self
 
     # API
     api_host: str = "0.0.0.0"

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import RoutingMatrix from '@/components/RoutingMatrix';
+import * as api from '@/lib/api';
 
 interface RoutingRule {
   id: number;
@@ -14,7 +15,7 @@ interface RoutingRule {
   is_active: boolean;
 }
 
-// Default routing rules — primary owner is the single accountable team, departments are secondary stakeholders
+// Fallback routing rules for when API is unavailable
 const DEFAULT_RULES: RoutingRule[] = [
   { id: 1, category: 'debt_collection', severity_min: 'low', primary_owner: 'Collections', departments: ['Compliance'], escalate_to: ['CEO Office'], channels: ['slack', 'lark'], is_active: true },
   { id: 2, category: 'transaction', severity_min: 'low', primary_owner: 'Product', departments: ['CS', 'Ops'], escalate_to: null, channels: ['slack'], is_active: true },
@@ -29,7 +30,13 @@ const DEFAULT_RULES: RoutingRule[] = [
 ];
 
 export default function RoutingPage() {
-  const [rules, setRules] = useState<RoutingRule[]>(DEFAULT_RULES);
+  const [rules, setRules] = useState<RoutingRule[]>([]);
+
+  useEffect(() => {
+    api.getRoutingRules()
+      .then((data) => setRules(data.items || []))
+      .catch(() => setRules(DEFAULT_RULES));
+  }, []);
 
   return (
     <div>
