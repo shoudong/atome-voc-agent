@@ -7,6 +7,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import get_db
+from backend.models.alert import Alert
 from backend.models.incident import Incident
 from backend.models.post import Post
 from backend.schemas.analytics import (
@@ -100,6 +101,32 @@ async def overview(
         )
     ).scalar() or 0
 
+    # Detect-to-alert latency: avg minutes between Incident.created_at (system detection)
+    # and first Alert.created_at (alert dispatch)
+    first_alert_subq = (
+        select(
+            Alert.incident_id,
+            func.min(Alert.created_at).label("first_alert_at"),
+        )
+        .where(Alert.incident_id.isnot(None))
+        .group_by(Alert.incident_id)
+        .subquery()
+    )
+    latency_rows = (
+        await db.execute(
+            select(
+                func.avg(
+                    func.extract("epoch", first_alert_subq.c.first_alert_at)
+                    - func.extract("epoch", Incident.created_at)
+                ).label("avg_seconds")
+            )
+            .select_from(Incident)
+            .join(first_alert_subq, Incident.id == first_alert_subq.c.incident_id)
+            .where(inc_time_filter)
+        )
+    ).scalar()
+    avg_latency_min = round(latency_rows / 60, 1) if latency_rows and latency_rows > 0 else None
+
     # Previous period stats
     prev_total = (
         await db.execute(select(func.count()).select_from(Post).where(prev_filter))
@@ -127,16 +154,48 @@ async def overview(
         )
     ).scalar() or 0
 
+    # Previous period open incidents (created in prev period, currently still open)
+    prev_open_inc = (
+        await db.execute(
+            select(func.count())
+            .select_from(Incident)
+            .where(
+                and_(
+                    prev_inc_filter,
+                    Incident.status.in_(["new", "acknowledged", "in_review"]),
+                )
+            )
+        )
+    ).scalar() or 0
+
+    # Previous period latency
+    prev_latency_rows = (
+        await db.execute(
+            select(
+                func.avg(
+                    func.extract("epoch", first_alert_subq.c.first_alert_at)
+                    - func.extract("epoch", Incident.created_at)
+                ).label("avg_seconds")
+            )
+            .select_from(Incident)
+            .join(first_alert_subq, Incident.id == first_alert_subq.c.incident_id)
+            .where(prev_inc_filter)
+        )
+    ).scalar()
+    prev_avg_latency_min = round(prev_latency_rows / 60, 1) if prev_latency_rows and prev_latency_rows > 0 else None
+
     return KPIOverview(
         total_mentions=total,
         negative_complaints=negative,
         negative_pct=round(negative / total * 100, 1) if total else 0,
         critical_incidents=critical_inc,
         open_incidents=open_inc,
-        avg_detect_to_alert_min=None,
+        avg_detect_to_alert_min=avg_latency_min,
         prev_total_mentions=prev_total,
         prev_negative_pct=round(prev_negative / prev_total * 100, 1) if prev_total else 0,
         prev_critical_incidents=prev_critical_inc,
+        prev_open_incidents=prev_open_inc,
+        prev_avg_detect_to_alert_min=prev_avg_latency_min,
     )
 
 

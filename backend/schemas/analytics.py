@@ -12,6 +12,8 @@ class KPIOverview(BaseModel):
     prev_total_mentions: int = 0
     prev_negative_pct: float = 0
     prev_critical_incidents: int = 0
+    prev_open_incidents: int = 0
+    prev_avg_detect_to_alert_min: float | None = None
 
 
 class TrendPoint(BaseModel):

@@ -59,6 +59,8 @@ export default function OverviewPage() {
           prev_total_mentions: 768,
           prev_negative_pct: 27.8,
           prev_critical_incidents: 2,
+          prev_open_incidents: 10,
+          prev_avg_detect_to_alert_min: 14,
         });
         setTrend([
           { date: '2026-04-13', total: 32, critical: 2, high: 5, medium: 10, low: 10, none: 5 },
@@ -164,6 +166,25 @@ export default function OverviewPage() {
     return { text: 'No change vs prev period', dir: 'neutral' as const };
   })();
 
+  const latencyDelta = (() => {
+    if (!kpi) return { text: '', dir: 'neutral' as const };
+    const cur = kpi.avg_detect_to_alert_min;
+    const prev = kpi.prev_avg_detect_to_alert_min;
+    if (cur == null || prev == null) return { text: '', dir: 'neutral' as const };
+    const diff = +(cur - prev).toFixed(1);
+    if (diff > 0) return { text: `+${diff} min vs prev`, dir: 'up' as const };
+    if (diff < 0) return { text: `${diff} min vs prev`, dir: 'down' as const };
+    return { text: 'No change vs prev', dir: 'neutral' as const };
+  })();
+
+  const openIncDelta = (() => {
+    if (!kpi) return { text: '', dir: 'neutral' as const };
+    const diff = kpi.open_incidents - kpi.prev_open_incidents;
+    if (diff > 0) return { text: `+${diff} vs prev period`, dir: 'up' as const };
+    if (diff < 0) return { text: `${diff} vs prev period`, dir: 'down' as const };
+    return { text: 'No change vs prev period', dir: 'neutral' as const };
+  })();
+
   return (
     <div>
       {/* Page header */}
@@ -205,10 +226,14 @@ export default function OverviewPage() {
           label="Detect-to-alert latency"
           value={kpi?.avg_detect_to_alert_min ?? '-'}
           suffix={kpi?.avg_detect_to_alert_min ? 'min' : ''}
+          delta={latencyDelta.text}
+          deltaDirection={latencyDelta.dir}
         />
         <KPICard
           label="Open incidents"
           value={kpi?.open_incidents ?? '-'}
+          delta={openIncDelta.text}
+          deltaDirection={openIncDelta.dir}
         />
       </div>
 
